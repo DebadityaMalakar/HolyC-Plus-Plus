@@ -4,12 +4,12 @@
 ![C++17](https://img.shields.io/badge/C++-17-red.svg)
 ![Build](https://img.shields.io/badge/Build-Passing-brightgreen.svg)
 
-> **A modern, type-safe reimplementation of Terry A. Davis's HolyC programming language**
+> **A modern, type-safe reimplementation of Terry A. Davis's HolyC programming language**  
 > Implementing the HolyC language specification with modern usability extensions.
 
 ## 📊 Current Status
 
-### ✅ **Implemented: Integer Type System (Phase 1)**
+### ✅ **Phase 1: Core Type System (COMPLETE)**
 Following the [HolyC Language Specification](https://holyc-lang.com/docs/language-spec/learn-variables), the core integer type system is fully implemented:
 
 **Basic Types (as per spec):**
@@ -22,17 +22,36 @@ Following the [HolyC Language Specification](https://holyc-lang.com/docs/languag
 - `I32` - 32-bit signed integer (-2,147,483,648 to 2,147,483,647)
 - `I64` - 64-bit signed integer (-9,223,372,036,854,775,808 to 9,223,372,036,854,775,807)
 
-**HolyC-Specific Features Implemented:**
-- Zero-cost abstractions (compiles to native operations)
-- `U0` placeholder for incomplete types (simple version)
-- Pointer-to-integer conversions (HolyC style)
-- Hex operations (`.to_hex()`, `PrintHex()`)
-- Full arithmetic, bitwise, and comparison operations
+### ✅ **Basic Error System (FOUNDATIONAL)**
+A foundational error system has been implemented and needs further development:
 
-**Deviation from Original HolyC:**
-- Runtime bounds checking (optional safety)
-- Overflow/underflow detection with exceptions (opt-in)
-- Type-safe conversions (prevents accidental truncation)
+**✅ Implemented:**
+- **Core Error Classes**: `CompilerError`, `ContextualError`, `InternalError`
+- **Error Manager**: Singleton for error collection, reporting, and statistics
+- **Source Location Tracking**: File, line, column position tracking
+- **Error Builder Pattern**: Fluent interface for constructing complex errors
+- **Error Severity Levels**: NOTE, WARNING, ERROR, FATAL
+- **Basic Error Categories**: Lexer, Parser, Type, Semantic, CodeGen errors
+- **Error Code Registry**: Predefined error codes with categories
+- **Comprehensive Testing**: Full test suite covering all error features
+
+**🔧 Needs Improvement:**
+- **Error Recovery Mechanisms**: More sophisticated error recovery strategies
+- **Multithreading Support**: Thread-safe error reporting
+- **Internationalization**: Error message localization support
+- **Performance Optimization**: Reduced overhead in production builds
+- **Enhanced Context Management**: Better contextual error tracking
+
+**📋 See `tests/test_error.cpp` for complete error system tests**
+
+### 🚧 **Phase 2: HolyC Language Features (IN PROGRESS)**
+- [ ] **F64**: 64-bit floating point (double in HolyC)
+- [ ] **U0 Improvements**: Full union type implementation
+- [ ] **String Literals**: HolyC-style string handling
+- [ ] **Control Structures**: if, while, for (HolyC syntax)
+- [ ] **Functions**: HolyC function declaration and calling
+- [ ] **Arrays**: HolyC array syntax and semantics
+- [ ] **Pointers**: Full pointer type system
 
 ## 🚀 Quick Start
 
@@ -51,43 +70,48 @@ chmod +x run.sh
 # Build and run all tests
 ./run.sh
 
+# Run error system tests specifically
+./run.sh --test-error
+
 # Clean build
 ./run.sh --clean
 ```
 
-### Example Usage (HolyC++ Style)
+### Example Usage (Error System)
 ```cpp
-#include "src/types/unsigned_int.hpp"
-#include "src/types/signed_int.hpp"
+#include "src/lib/error.hpp"
+#include "src/lib/error_types.hpp"
 #include <iostream>
 
 using namespace holycpp;
 
 int main() {
-    // HolyC-style variable declaration
-    U64 counter = 42;
-    I32 temperature = -25;
+    // Quick error reporting
+    ErrorManager::get().error("Syntax error at line 42");
+    ErrorManager::get().warning("Deprecated function used");
     
-    // HolyC pointer-to-integer conversion
-    int value = 42;
-    void* ptr = &value;
-    U64 ptr_as_int = ptr;  // Direct conversion like HolyC
+    // Error with source location
+    SourceLocation loc("program.hc", 42, 15);
+    ErrorManager::get().error("Type mismatch", loc);
     
-    // HolyC-style operations
-    counter.Print();      // Prints decimal value
-    counter.PrintHex();   // Prints hex value (0x2A)
+    // Using error builder for complex errors
+    auto error = (ErrorManager::get().buildError()
+        .at("file.hc", 30, 5)
+        .code("T001")
+        << "Cannot convert 'float' to 'int'")
+        .inContext("In function 'calculate'")
+        .inContext("While processing argument 2")
+        .build();
     
-    // HolyC-style array (basic emulation)
-    U8 buffer[256];
-    buffer[0] = 'H';
-    buffer[1] = 'i';
+    // Report the built error
+    ErrorManager::get().report(std::move(error));
     
-    // Safety-enhanced operations (HolyC++ extension)
-    U8 max_val = U8::MAX;
-    try {
-        U8 result = max_val.checked_add(U8(1));  // Throws on overflow
-    } catch (const std::overflow_error& e) {
-        Print("Safety: %s", e.what());  // HolyC++ style error handling
+    // Check for errors
+    if (ErrorManager::get().hasErrors()) {
+        std::cerr << "Compilation failed with " 
+                  << ErrorManager::get().getErrorCount() 
+                  << " errors\n";
+        return 1;
     }
     
     return 0;
@@ -101,6 +125,7 @@ int main() {
 - [x] **Basic Operations**: Arithmetic, bitwise, comparisons per HolyC spec
 - [x] **Pointer Integration**: HolyC-style pointer arithmetic
 - [x] **Hex Operations**: `.to_hex()` and `PrintHex()` methods
+- [x] **Error System**: Foundational error handling framework
 - [x] **Testing**: Comprehensive test suite
 
 ### Phase 2: HolyC Language Features 🔄 **CURRENT**
@@ -126,7 +151,7 @@ int main() {
 - [ ] **Standard Library**: HolyC stdlib reimplementation
 
 ### Phase 5: Modern Extensions 📋
-- [ ] **Enhanced Type Safety**: Optional strict mode
+- [ ] **Enhanced Error Recovery**: More sophisticated error handling
 - [ ] **Memory Safety**: Bounds checking, use-after-free detection
 - [ ] **Modern Tooling**: Debugger, profiler, IDE integration
 - [ ] **Cross-Platform**: Linux, Windows, macOS support
@@ -138,47 +163,81 @@ int main() {
 - [ ] **Ecosystem**: Libraries, frameworks, tools
 - [ ] **Documentation**: Tutorials, guides, reference
 
-## 🎯 Project Philosophy
+## 🤝 Contributing to the Error System
 
-**Based on HolyC, Enhanced for Modern Use:**
+The error system is **functional but needs improvement**. Here's how you can help:
 
-1. **HolyC Compatibility First**: Faithful to Terry Davis's original specification
-2. **No Bootstrapping**: This implementation will never be self-hosted in HolyC++ (philosophical choice)
-3. **Modern Safety**: Add optional safety features without breaking HolyC compatibility
-4. **Educational**: Clean implementation for studying language and compiler design
-5. **Practical**: Usable for real projects while honoring the original
+### High Priority Error System Improvements:
+1. **Enhanced Error Recovery**: 
+   - Implement better error recovery in parser
+   - Add configurable error suppression policies
+   - Develop multi-file error tracking
 
-**Reference Documentation:**
-- [HolyC Language Specification](https://holyc-lang.com/docs/language-spec/learn-variables)
-- [TempleOS Documentation](https://templeos.org/)
-- [Original HolyC Source](https://github.com/cia-foundation/TempleOS)
+2. **Performance Optimizations**:
+   - Thread-safe error reporting
+   - Reduced memory overhead
+   - Faster error formatting
+
+3. **Advanced Features**:
+   - Error message internationalization
+   - Plug-in error handlers
+   - Error correlation across compilation stages
+   - Automated error suggestion system
+
+4. **Testing & Documentation**:
+   - More comprehensive error scenarios
+   - Performance benchmarks
+   - API documentation examples
+
+### Getting Started with Error System Development:
+```bash
+# Study the current implementation:
+ls -la src/lib/error*          # Error system headers
+ls -la tests/test_error.cpp    # Test suite
+
+# Run error tests:
+./run.sh --test-error
+
+# Add new error types:
+# 1. Add to error_types.hpp
+# 2. Implement in error_types.cpp  
+# 3. Add tests in test_error.cpp
+```
+
+### Error System Architecture:
+```
+src/lib/
+├── error.hpp              # Core error classes
+├── error.cpp              # Singleton definitions
+├── error_types.hpp        # Specialized error types
+└── error_types.cpp        # Error type implementations
+```
+
+**See `CONTRIBUTING.md` for full contribution guidelines.**
 
 ## 📁 Project Structure
 ```
 holyc-plus-plus/
 ├── src/
 │   ├── types/           # Core type system (COMPLETE)
+│   ├── lib/             # Error system and utilities
+│   │   ├── error.hpp
+│   │   ├── error.cpp
+│   │   ├── error_types.hpp
+│   │   └── error_types.cpp
 │   ├── parser/          # HolyC parser (IN PROGRESS)
 │   ├── ast/             # Abstract Syntax Tree
 │   ├── compiler/        # Compiler backend
 │   └── runtime/         # Runtime library
 ├── tests/               # Test suite
+│   ├── test_int.cpp    # Integer type tests
+│   └── test_error.cpp  # Error system tests
 ├── examples/            # Example HolyC programs
 ├── docs/                # Documentation
 ├── spec/                # HolyC++ language specification
 ├── run.sh              # Build script
 └── LICENSE             # GNU GPL v3.0
 ```
-
-## 🤝 Contributing
-
-Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project. We welcome contributions of all kinds!
-
-**Areas Needing Help:**
-- Implementing F64 and improved U0 types
-- Building the HolyC parser
-- Writing HolyC-to-C++ transpiler
-- Testing and documentation
 
 ## 📜 License
 
@@ -196,9 +255,3 @@ This ensures:
 - **HolyC Language Specification**: Reference documentation
 - **TempleOS Community**: For preserving Terry's work
 - **Contributors**: Everyone who helps build HolyC++
-
----
-
-*Current Progress: Phase 1 Complete. Working on Phase 2 (Full HolyC Language Support).*
-
-*"The compiler is the Temple and the language is the Word." - Terry A. Davis*
