@@ -18,54 +18,137 @@ CXXFLAGS="-std=c++17 -I. -Wall -Wextra -Werror -O2"
 TARGET="holyc_test"
 BUILD_DIR="build"
 
-# Source files
-SOURCES=(
-    "src/types/unsigned_int.cpp"
-    "src/types/signed_int.cpp"
-    "src/tests/test_int.cpp"
+# Tests (name|space-separated-sources)
+TESTS=(
+    "int|src/types/unsigned_int.cpp src/types/signed_int.cpp src/tests/test_int.cpp"
+    "error|src/tests/test_error.cpp"
 )
+
+ARG="$1"
+
+# Cleanup option (early)
+if [[ "$ARG" == "--clean" ]]; then
+    echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
+    rm -rf "$BUILD_DIR"
+    exit 0
+fi
+
+# If an argument was provided, treat it as a test filter (int or error)
+FILTER=""
+if [[ -n "$ARG" ]]; then
+    FILTER="$ARG"
+fi
+
+# Validate filter if provided
+if [[ -n "$FILTER" ]]; then
+    found=0
+    for entry in "${TESTS[@]}"; do
+        name="${entry%%|*}"
+        if [[ "$name" == "$FILTER" ]]; then
+            found=1
+            break
+        fi
+    done
+    if [[ $found -ne 1 ]]; then
+        echo -e "${RED}Unknown test: '$FILTER'${NC}"
+        echo -e "Usage: ./run.sh [int|error] | --clean"
+        exit 1
+    fi
+fi
 
 # Create build directory
 echo -e "${BLUE}📁 Creating build directory...${NC}"
-mkdir -p $BUILD_DIR
+mkdir -p "$BUILD_DIR"
 
-# Compile object files
-echo -e "${BLUE}🔨 Compiling source files...${NC}"
-OBJ_FILES=()
-for src in "${SOURCES[@]}"; do
-    obj="$BUILD_DIR/$(basename "$src" .cpp).o"
-    echo -e "  ${YELLOW}Compiling${NC} $src"
-    $CXX $CXXFLAGS -c "$src" -o "$obj"
-    OBJ_FILES+=("$obj")
+# Build each selected test into its own executable
+echo -e "${BLUE}🔨 Compiling test targets...${NC}"
+declare -a EXES=()
+for entry in "${TESTS[@]}"; do
+    name="${entry%%|*}"
+    sources_str="${entry#*|}"
+
+    # If a filter was provided, skip other tests
+    if [[ -n "$FILTER" && "$FILTER" != "$name" ]]; then
+        continue
+    fi
+
+    OBJ_FILES=()
+    for src in $sources_str; do
+        obj="$BUILD_DIR/${name}_$(basename "$src" .cpp).o"
+        echo -e "  ${YELLOW}Compiling${NC} ${name}: $src"
+        $CXX $CXXFLAGS -c "$src" -o "$obj"
+        OBJ_FILES+=("$obj")
+    done
+
+    exe="${name}_${TARGET}"
+    echo -e "  ${YELLOW}Linking${NC} ${name}: $exe"
+    $CXX $CXXFLAGS "${OBJ_FILES[@]}" -o "$BUILD_DIR/$exe"
+    EXES+=("$exe")
 done
 
-# Link executable
-echo -e "${BLUE}🔗 Linking executable...${NC}"
-$CXX $CXXFLAGS "${OBJ_FILES[@]}" -o "$BUILD_DIR/$TARGET"
-
-# Run tests
-echo -e "\n${BLUE}🧪 Running tests...${NC}"
-echo -e "${GREEN}========================================${NC}"
-if "$BUILD_DIR/$TARGET"; then
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}✅ All tests passed!${NC}"
-    
-    # Optional: Show binary info
-    echo -e "\n${BLUE}📦 Binary info:${NC}"
-    if command -v size &> /dev/null; then
-        size "$BUILD_DIR/$TARGET"
-    fi
-else
-    echo -e "${RED}========================================${NC}"
-    echo -e "${RED}❌ Tests failed!${NC}"
+if [[ ${#EXES[@]} -eq 0 ]]; then
+    echo -e "${RED}No tests to run (check filter or TESTS config).${NC}"
     exit 1
 fi
 
-# Cleanup option
-if [[ "$1" == "--clean" ]]; then
-    echo -e "\n${YELLOW}🧹 Cleaning up...${NC}"
-    rm -rf $BUILD_DIR
+# Run tests in parallel
+echo -e "\n${BLUE}🧪 Running tests in parallel...${NC}"
+echo -e "${GREEN}========================================${NC}"
+
+declare -a PIDS=()
+declare -a LOGS=()
+declare -a NAMES=()
+
+# Trap to clean up background processes on interrupt
+trap 'echo -e "${YELLOW}\nInterrupted, killing running tests...${NC}"; for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null || true; done; exit 130' INT TERM
+
+for exe in "${EXES[@]}"; do
+    name="${exe%%_*}"
+    log="$BUILD_DIR/${exe}.log"
+    echo -e "  ${YELLOW}Starting${NC} $name -> $log"
+    "$BUILD_DIR/$exe" > "$log" 2>&1 &
+    pid=$!
+    PIDS+=("$pid")
+    LOGS+=("$log")
+    NAMES+=("$name")
+done
+
+# Wait for all tests and collect results
+fail_count=0
+for i in "${!PIDS[@]}"; do
+    pid="${PIDS[i]}"
+    name="${NAMES[i]}"
+    log="${LOGS[i]}"
+    wait "$pid"
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        echo -e "${GREEN}✔ ${name} passed${NC}"
+    else
+        echo -e "${RED}✖ ${name} failed (exit $rc)${NC}"
+        echo -e "${YELLOW}--- ${name} log ---${NC}"
+        sed -n '1,200p' "$log" || true
+        echo -e "${YELLOW}--- end log ---${NC}"
+        fail_count=$((fail_count + 1))
+    fi
+done
+
+echo -e "${GREEN}========================================${NC}"
+if [[ $fail_count -eq 0 ]]; then
+    echo -e "${GREEN}✅ All tests passed!${NC}"
+    # Optional: Show binary info
+    echo -e "\n${BLUE}📦 Binary info:${NC}"
+    if command -v size &> /dev/null; then
+        for exe in "${EXES[@]}"; do
+            size "$BUILD_DIR/$exe"
+        done
+    fi
+    exit 0
+else
+    echo -e "${RED}❌ Some tests failed (${fail_count})${NC}"
+    exit 1
 fi
 
-# Run with: ./run.sh
-# Clean with: ./run.sh --clean
+# Usage: ./run.sh        -> run both int and error
+#        ./run.sh int    -> run int only
+#        ./run.sh error  -> run error only
+#        ./run.sh --clean-> remove build dir
