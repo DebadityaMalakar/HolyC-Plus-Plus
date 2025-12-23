@@ -22,6 +22,8 @@ BUILD_DIR="build"
 TESTS=(
     "int|src/types/unsigned_int.cpp src/types/signed_int.cpp src/tests/test_int.cpp"
     "error|src/tests/test_error.cpp"
+    "float|src/types/float.cpp src/tests/test_float.cpp"
+    "union|src/types/union_type.cpp src/tests/test_union.cpp"
 )
 
 ARG="$1"
@@ -33,7 +35,24 @@ if [[ "$ARG" == "--clean" ]]; then
     exit 0
 fi
 
-# If an argument was provided, treat it as a test filter (int or error)
+# Help option
+if [[ "$ARG" == "--help" || "$ARG" == "-h" ]]; then
+    echo -e "${BLUE}HolyC++ Test Runner${NC}"
+    echo -e "Usage: ./run.sh [test_name] | --clean | --help"
+    echo -e "\nAvailable tests:"
+    for entry in "${TESTS[@]}"; do
+        name="${entry%%|*}"
+        echo -e "  ${YELLOW}$name${NC}"
+    done
+    echo -e "\nExamples:"
+    echo -e "  ./run.sh           # Run all tests"
+    echo -e "  ./run.sh int       # Run int test only"
+    echo -e "  ./run.sh union     # Run union test only"
+    echo -e "  ./run.sh --clean   # Clean build directory"
+    exit 0
+fi
+
+# If an argument was provided, treat it as a test filter (int, error, float, or union)
 FILTER=""
 if [[ -n "$ARG" ]]; then
     FILTER="$ARG"
@@ -51,7 +70,11 @@ if [[ -n "$FILTER" ]]; then
     done
     if [[ $found -ne 1 ]]; then
         echo -e "${RED}Unknown test: '$FILTER'${NC}"
-        echo -e "Usage: ./run.sh [int|error] | --clean"
+        echo -e "Available tests:"
+        for entry in "${TESTS[@]}"; do
+            name="${entry%%|*}"
+            echo -e "  ${YELLOW}$name${NC}"
+        done
         exit 1
     fi
 fi
@@ -119,14 +142,24 @@ for i in "${!PIDS[@]}"; do
     pid="${PIDS[i]}"
     name="${NAMES[i]}"
     log="${LOGS[i]}"
-    wait "$pid"
-    rc=$?
+    
+    # Wait for this specific process
+    if wait "$pid" 2>/dev/null; then
+        rc=$?
+    else
+        rc=$?
+    fi
+    
     if [[ $rc -eq 0 ]]; then
         echo -e "${GREEN}✔ ${name} passed${NC}"
     else
         echo -e "${RED}✖ ${name} failed (exit $rc)${NC}"
         echo -e "${YELLOW}--- ${name} log ---${NC}"
-        sed -n '1,200p' "$log" || true
+        if [[ -f "$log" ]]; then
+            head -n 200 "$log"
+        else
+            echo "Log file not found"
+        fi
         echo -e "${YELLOW}--- end log ---${NC}"
         fail_count=$((fail_count + 1))
     fi
@@ -139,7 +172,8 @@ if [[ $fail_count -eq 0 ]]; then
     echo -e "\n${BLUE}📦 Binary info:${NC}"
     if command -v size &> /dev/null; then
         for exe in "${EXES[@]}"; do
-            size "$BUILD_DIR/$exe"
+            echo -e "\n${YELLOW}$exe:${NC}"
+            size "$BUILD_DIR/$exe" 2>/dev/null || echo "  size command failed"
         done
     fi
     exit 0
@@ -148,7 +182,10 @@ else
     exit 1
 fi
 
-# Usage: ./run.sh        -> run both int and error
-#        ./run.sh int    -> run int only
-#        ./run.sh error  -> run error only
-#        ./run.sh --clean-> remove build dir
+# Usage: ./run.sh           -> run all tests
+#        ./run.sh int       -> run int only
+#        ./run.sh error     -> run error only  
+#        ./run.sh float     -> run float only
+#        ./run.sh union     -> run union only
+#        ./run.sh --clean   -> remove build dir
+#        ./run.sh --help    -> show help

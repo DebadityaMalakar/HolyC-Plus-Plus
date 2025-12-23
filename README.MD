@@ -44,14 +44,82 @@ A foundational error system has been implemented and needs further development:
 
 **📋 See `tests/test_error.cpp` for complete error system tests**
 
-### 🚧 **Phase 2: HolyC Language Features (IN PROGRESS)**
-- [ ] **F64**: 64-bit floating point (double in HolyC)
-- [ ] **U0 Improvements**: Full union type implementation
-- [ ] **String Literals**: HolyC-style string handling
+### ✅ **Phase 2: Floating Point Types (COMPLETE)**
+Full floating-point support following HolyC's approach:
+
+**✅ Implemented:**
+- `F32` - 32-bit floating point (IEEE-754 single precision)
+- `F64` - 64-bit floating point (IEEE-754 double precision, same as HolyC's "double")
+
+**Features:**
+- **Arithmetic Operations**: +, -, *, /, % (with bounds checking)
+- **Math Functions**: sqrt(), abs(), pow(), sin(), cos(), tan()
+- **Rounding**: floor(), ceil(), round()
+- **Special Values**: NaN, Infinity detection with is_nan(), is_inf()
+- **Type Conversions**: Seamless conversion from/to integer types
+- **Comparisons**: Full relational operators with proper floating-point semantics
+- **Error Handling**: Division by zero, domain errors
+- **HolyC Compatibility**: Direct F64 support matching HolyC's double type
+
+**📋 See `tests/test_float.cpp` for complete floating-point tests**
+
+### ✅ **Phase 3: Union Type System (COMPLETE)**
+Full union support with HolyC compatibility:
+
+**✅ Implemented:**
+- `U0` - Void type for union compatibility
+- `Union<Types...>` - Type-safe union wrapper
+- `Value` class - Example from HolyC documentation
+- Plain C unions - Direct HolyC compatibility
+
+**Features:**
+- **Type-Safe Access**: get<T>() with runtime type checking
+- **Unsafe Access**: as<T>() HolyC-style unsafe casting
+- **Active Type Tracking**: Knows which type is currently active
+- **Memory Management**: Proper construction/destruction of union members
+- **C Compatibility**: Exact memory layout matching HolyC
+- **Move/Copy Semantics**: Full support for modern C++
+- **Union Macros**: `UNION_BEGIN()`, `UNION_END()`, `UNION()` macros
+
+**HolyC Examples Implemented:**
+```c
+// HolyC union example:
+union Example {
+  I32 age;
+  U8 ch;
+};
+
+// HolyC Value class example:
+#define FLOAT_TYPE 0
+#define CHAR_TYPE  1
+#define VALUE_TYPE 2
+
+class Value {
+  I32 type;
+  union {
+    F64 f;
+    U8 ch;
+    Value *val;
+  };
+};
+```
+
+**📋 See `tests/test_union.cpp` for complete union tests**
+
+### 🚧 **Phase 4: String & Memory Management (IN PROGRESS)**
+- [ ] **String Types**: HolyC-style string handling
+- [ ] **Memory Allocation**: MAlloc, Free wrappers
+- [ ] **Basic String Operations**: Concatenation, comparison, formatting
+- [ ] **String Literal Support**: HolyC string syntax
+
+### 📋 **Future Phases:**
 - [ ] **Control Structures**: if, while, for (HolyC syntax)
 - [ ] **Functions**: HolyC function declaration and calling
 - [ ] **Arrays**: HolyC array syntax and semantics
 - [ ] **Pointers**: Full pointer type system
+- [ ] **Parser & Interpreter**: Lexer, Parser, Type Checker
+- [ ] **Compiler Backend**: Code generation, optimizations
+- [ ] **Modern Extensions**: Enhanced error recovery, memory safety
 
 ## 🚀 Quick Start
 
@@ -70,49 +138,74 @@ chmod +x run.sh
 # Build and run all tests
 ./run.sh
 
-# Run error system tests specifically
-./run.sh --test-error
+# Test specific components
+./run.sh --test-int      # Integer type tests
+./run.sh --test-float    # Floating-point tests  
+./run.sh --test-union    # Union type tests
+./run.sh --test-error    # Error system tests
 
 # Clean build
 ./run.sh --clean
 ```
 
-### Example Usage (Error System)
+### Example Usage (Union Types)
 ```cpp
-#include "src/lib/error.hpp"
-#include "src/lib/error_types.hpp"
+#include "src/types/union_type.hpp"
 #include <iostream>
 
 using namespace holycpp;
 
 int main() {
-    // Quick error reporting
-    ErrorManager::get().error("Syntax error at line 42");
-    ErrorManager::get().warning("Deprecated function used");
+    // HolyC-style union
+    Example e;  // Union<I32, U8>
     
-    // Error with source location
-    SourceLocation loc("program.hc", 42, 15);
-    ErrorManager::get().error("Type mismatch", loc);
+    // Type-safe access
+    e.set(I32(42));
+    std::cout << "Age: " << e.get<I32>() << std::endl;
     
-    // Using error builder for complex errors
-    auto error = (ErrorManager::get().buildError()
-        .at("file.hc", 30, 5)
-        .code("T001")
-        << "Cannot convert 'float' to 'int'")
-        .inContext("In function 'calculate'")
-        .inContext("While processing argument 2")
-        .build();
+    e.set(U8('A'));
+    std::cout << "Char: '" << e.get<U8>() << "'" << std::endl;
     
-    // Report the built error
-    ErrorManager::get().report(std::move(error));
+    // HolyC-style unsafe access
+    e.set(I32(0x41424344));  // "ABCD" in ASCII
+    std::cout << "First char: '" << e.as<U8>() << "'" << std::endl;
     
-    // Check for errors
-    if (ErrorManager::get().hasErrors()) {
-        std::cerr << "Compilation failed with " 
-                  << ErrorManager::get().getErrorCount() 
-                  << " errors\n";
-        return 1;
-    }
+    // Value class example from HolyC docs
+    Value* v = MAllocValue();
+    v->set_float(3.14159);
+    v->Print();
+    
+    Free(v);
+    return 0;
+}
+```
+
+### Example Usage (Floating Point)
+```cpp
+#include "src/types/float.hpp"
+#include <iostream>
+
+using namespace holycpp;
+
+int main() {
+    // HolyC-style floating point
+    F64 pi = 3.14159265359;  // Same as double in HolyC
+    F32 half = 0.5f;         // Single precision (HolyC++)
+    
+    // Arithmetic operations
+    F64 radius = 5.0;
+    F64 area = pi * radius * radius;
+    std::cout << "Area: " << area << std::endl;
+    
+    // Math functions
+    F64 x = 16.0;
+    F64 sqrt_x = x.sqrt();
+    std::cout << "sqrt(" << x << ") = " << sqrt_x << std::endl;
+    
+    // Trigonometric functions
+    F64 angle = 0.0;
+    std::cout << "sin(0) = " << angle.sin() << std::endl;
+    std::cout << "cos(0) = " << angle.cos() << std::endl;
     
     return 0;
 }
@@ -128,98 +221,81 @@ int main() {
 - [x] **Error System**: Foundational error handling framework
 - [x] **Testing**: Comprehensive test suite
 
-### Phase 2: HolyC Language Features 🔄 **CURRENT**
-- [ ] **F64**: 64-bit floating point (double in HolyC)
-- [ ] **U0 Improvements**: Full union type implementation
-- [ ] **String Literals**: HolyC-style string handling
-- [ ] **Control Structures**: if, while, for (HolyC syntax)
-- [ ] **Functions**: HolyC function declaration and calling
-- [ ] **Arrays**: HolyC array syntax and semantics
-- [ ] **Pointers**: Full pointer type system
+### Phase 2: Floating Point Types ✅ **COMPLETE**
+- [x] **F64**: 64-bit floating point (double in HolyC)
+- [x] **F32**: 32-bit floating point (HolyC++ extension)
+- [x] **Math Functions**: sqrt, pow, sin, cos, etc.
+- [x] **Special Values**: NaN, Infinity handling
+- [x] **Rounding Functions**: floor, ceil, round
+- [x] **Type Conversions**: Seamless integer ↔ float conversion
+- [x] **Testing**: Complete floating-point test suite
 
-### Phase 3: Parser & Interpreter 📋 **NEXT**
+### Phase 3: Union Type System ✅ **COMPLETE**
+- [x] **U0 Type**: Void type for union compatibility
+- [x] **Type-Safe Union**: Union<Types...> wrapper
+- [x] **HolyC Value Class**: Exact implementation from documentation
+- [x] **Plain C Unions**: Direct HolyC compatibility
+- [x] **Memory Layout**: Exact match with HolyC memory layout
+- [x] **Unsafe Access**: as<T>() HolyC-style casting
+- [x] **Testing**: Comprehensive union test suite
+
+### Phase 4: String & Memory Management 🔄 **CURRENT**
+- [ ] **String Types**: HolyC-style string handling
+- [ ] **Memory Allocation**: MAlloc, Free wrappers
+- [ ] **Basic String Operations**: Concatenation, comparison, formatting
+- [ ] **String Literal Support**: HolyC string syntax
+
+### Phase 5: Control Structures 📋 **NEXT**
+- [ ] **if/else**: HolyC conditional statements
+- [ ] **while/for**: HolyC loop constructs
+- [ ] **switch**: HolyC switch statements
+- [ ] **goto**: HolyC goto support
+
+### Phase 6: Functions & Pointers 📋
+- [ ] **Function Declaration**: HolyC function syntax
+- [ ] **Pointer Types**: Full pointer type system
+- [ ] **Arrays**: HolyC array syntax and semantics
+- [ ] **Structs**: HolyC structure support
+
+### Phase 7: Parser & Interpreter 📋
 - [ ] **Lexer**: Tokenize HolyC source code
 - [ ] **Parser**: Generate AST from HolyC syntax
 - [ ] **Type Checker**: Static analysis
 - [ ] **Interpreter**: Execute HolyC code directly
 - [ ] **C++ Transpiler**: Convert HolyC to C++
 
-### Phase 4: Compiler Backend 📋
+### Phase 8: Compiler Backend 📋
 - [ ] **Code Generation**: Native machine code (x86_64)
 - [ ] **Optimizations**: Basic compiler optimizations
 - [ ] **Linker**: Object file generation
 - [ ] **Standard Library**: HolyC stdlib reimplementation
 
-### Phase 5: Modern Extensions 📋
+### Phase 9: Modern Extensions 📋
 - [ ] **Enhanced Error Recovery**: More sophisticated error handling
 - [ ] **Memory Safety**: Bounds checking, use-after-free detection
 - [ ] **Modern Tooling**: Debugger, profiler, IDE integration
 - [ ] **Cross-Platform**: Linux, Windows, macOS support
 - [ ] **Package Manager**: Library distribution system
 
-### Phase 6: HolyC++ Language 📋
+### Phase 10: HolyC++ Language 📋
 - [ ] **Language Specification**: HolyC++ official spec
 - [ ] **Advanced Features**: Generics, modules, concepts
 - [ ] **Ecosystem**: Libraries, frameworks, tools
 - [ ] **Documentation**: Tutorials, guides, reference
-
-## 🤝 Contributing to the Error System
-
-The error system is **functional but needs improvement**. Here's how you can help:
-
-### High Priority Error System Improvements:
-1. **Enhanced Error Recovery**: 
-   - Implement better error recovery in parser
-   - Add configurable error suppression policies
-   - Develop multi-file error tracking
-
-2. **Performance Optimizations**:
-   - Thread-safe error reporting
-   - Reduced memory overhead
-   - Faster error formatting
-
-3. **Advanced Features**:
-   - Error message internationalization
-   - Plug-in error handlers
-   - Error correlation across compilation stages
-   - Automated error suggestion system
-
-4. **Testing & Documentation**:
-   - More comprehensive error scenarios
-   - Performance benchmarks
-   - API documentation examples
-
-### Getting Started with Error System Development:
-```bash
-# Study the current implementation:
-ls -la src/lib/error*          # Error system headers
-ls -la tests/test_error.cpp    # Test suite
-
-# Run error tests:
-./run.sh --test-error
-
-# Add new error types:
-# 1. Add to error_types.hpp
-# 2. Implement in error_types.cpp  
-# 3. Add tests in test_error.cpp
-```
-
-### Error System Architecture:
-```
-src/lib/
-├── error.hpp              # Core error classes
-├── error.cpp              # Singleton definitions
-├── error_types.hpp        # Specialized error types
-└── error_types.cpp        # Error type implementations
-```
-
-**See `CONTRIBUTING.md` for full contribution guidelines.**
 
 ## 📁 Project Structure
 ```
 holyc-plus-plus/
 ├── src/
 │   ├── types/           # Core type system (COMPLETE)
+│   │   ├── unsigned_int.hpp
+│   │   ├── signed_int.hpp
+│   │   ├── float.hpp
+│   │   ├── union_type.hpp
+│   │   ├── unsigned_int.cpp
+│   │   ├── signed_int.cpp
+│   │   ├── float.cpp
+│   │   └── union_type.cpp
 │   ├── lib/             # Error system and utilities
 │   │   ├── error.hpp
 │   │   ├── error.cpp
@@ -229,8 +305,10 @@ holyc-plus-plus/
 │   ├── ast/             # Abstract Syntax Tree
 │   ├── compiler/        # Compiler backend
 │   └── runtime/         # Runtime library
-├── tests/               # Test suite
+├── tests/               # Comprehensive test suite
 │   ├── test_int.cpp    # Integer type tests
+│   ├── test_float.cpp  # Floating-point tests
+│   ├── test_union.cpp  # Union type tests
 │   └── test_error.cpp  # Error system tests
 ├── examples/            # Example HolyC programs
 ├── docs/                # Documentation
@@ -255,3 +333,30 @@ This ensures:
 - **HolyC Language Specification**: Reference documentation
 - **TempleOS Community**: For preserving Terry's work
 - **Contributors**: Everyone who helps build HolyC++
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Current Priority Areas:
+1. **String Type Implementation**: HolyC-style string handling
+2. **Memory Management**: MAlloc/Free improvements
+3. **Error System Enhancements**: Better recovery and performance
+4. **Control Structures**: if, while, for syntax implementation
+5. **Testing**: More comprehensive test coverage
+
+### Getting Started:
+```bash
+# Fork and clone the repository
+git clone https://github.com/your-username/holyc-plus-plus.git
+cd holyc-plus-plus
+
+# Create a feature branch
+git checkout -b feature/your-feature
+
+# Build and test
+./run.sh --test-all
+
+# Make changes and test
+# Submit a pull request
+```
